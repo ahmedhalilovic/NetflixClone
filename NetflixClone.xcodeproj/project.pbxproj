@@ -18,6 +18,10 @@
 		5E94E7242B1E17370024DA8E /* DownloadsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E94E7232B1E17370024DA8E /* DownloadsViewController.swift */; };
 		5EFF83022B1F339700FC0E6A /* CollectionViewTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF83012B1F339700FC0E6A /* CollectionViewTableViewCell.swift */; };
 		5EFF83042B1F66EA00FC0E6A /* HeroHeaderUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF83032B1F66EA00FC0E6A /* HeroHeaderUIView.swift */; };
+		5EFF83062B20AC0D00FC0E6A /* APICaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF83052B20AC0D00FC0E6A /* APICaller.swift */; };
+		5EFF83082B20C76900FC0E6A /* Movie.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF83072B20C76900FC0E6A /* Movie.swift */; };
+		5EFF830A2B21D91E00FC0E6A /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF83092B21D91E00FC0E6A /* Extensions.swift */; };
+		5EFF834C2B23147000FC0E6A /* TVShows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF834B2B23147000FC0E6A /* TVShows.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +38,10 @@
 		5E94E7232B1E17370024DA8E /* DownloadsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsViewController.swift; sourceTree = "<group>"; };
 		5EFF83012B1F339700FC0E6A /* CollectionViewTableViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionViewTableViewCell.swift; sourceTree = "<group>"; };
 		5EFF83032B1F66EA00FC0E6A /* HeroHeaderUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroHeaderUIView.swift; sourceTree = "<group>"; };
+		5EFF83052B20AC0D00FC0E6A /* APICaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APICaller.swift; sourceTree = "<group>"; };
+		5EFF83072B20C76900FC0E6A /* Movie.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Movie.swift; sourceTree = "<group>"; };
+		5EFF83092B21D91E00FC0E6A /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
+		5EFF834B2B23147000FC0E6A /* TVShows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVShows.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +120,8 @@
 		5EFF82FE2B1F332C00FC0E6A /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				5EFF83072B20C76900FC0E6A /* Movie.swift */,
+				5EFF834B2B23147000FC0E6A /* TVShows.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -119,6 +129,7 @@
 		5EFF82FF2B1F335100FC0E6A /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				5EFF83092B21D91E00FC0E6A /* Extensions.swift */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -126,6 +137,7 @@
 		5EFF83002B1F335F00FC0E6A /* Managers */ = {
 			isa = PBXGroup;
 			children = (
+				5EFF83052B20AC0D00FC0E6A /* APICaller.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -203,11 +215,15 @@
 				5E94E7222B1E17180024DA8E /* SearchViewController.swift in Sources */,
 				5E94E70A2B1DD3900024DA8E /* MainTabBarViewController.swift in Sources */,
 				5EFF83022B1F339700FC0E6A /* CollectionViewTableViewCell.swift in Sources */,
+				5EFF83062B20AC0D00FC0E6A /* APICaller.swift in Sources */,
 				5EFF83042B1F66EA00FC0E6A /* HeroHeaderUIView.swift in Sources */,
 				5E94E7242B1E17370024DA8E /* DownloadsViewController.swift in Sources */,
 				5E94E7062B1DD3900024DA8E /* AppDelegate.swift in Sources */,
+				5EFF830A2B21D91E00FC0E6A /* Extensions.swift in Sources */,
 				5E94E7082B1DD3900024DA8E /* SceneDelegate.swift in Sources */,
+				5EFF834C2B23147000FC0E6A /* TVShows.swift in Sources */,
 				5E94E7202B1E16FF0024DA8E /* UpcomingViewController.swift in Sources */,
+				5EFF83082B20C76900FC0E6A /* Movie.swift in Sources */,
 				5E94E71E2B1E16CE0024DA8E /* HomeViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
