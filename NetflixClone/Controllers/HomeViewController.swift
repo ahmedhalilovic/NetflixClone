@@ -30,7 +30,10 @@ class HomeViewController: UIViewController {
         homeFeedTable.tableHeaderView = headerView
         
         getTrendingMovies()
-        getTVShows()
+        getTrendingTVShows()
+        getPopularMovies()
+        getUpcomingMovies()
+        getTopRatedMovies()
     }
     
     private func configureNavBar() {
@@ -53,7 +56,7 @@ class HomeViewController: UIViewController {
         homeFeedTable.frame = view.bounds
     }
     
-    //Function to get trending movies from API request
+    //Function to show Trending Movies from API request
     private func getTrendingMovies() {
         
         APICaller.shared.getTrendingMovies { results in
@@ -66,8 +69,8 @@ class HomeViewController: UIViewController {
         }
     }
     
-    // Function to get trending TV Shows from API request
-    private func getTVShows() {
+    // Function to show trending TV Shows from API request
+    private func getTrendingTVShows() {
         
         APICaller.shared.getTrendingTVShows { results in
             switch results {
@@ -78,9 +81,50 @@ class HomeViewController: UIViewController {
             }
         }
     }
+    
+    // Function to show Upcoming Movies from API request
+    private func getPopularMovies() {
+        
+        APICaller.shared.getPopular { results in
+            switch results {
+            case .success(let movies):
+                print(movies)
+            case .failure(let error):
+                print(error)
+            }
+        }
+    }
+    
+    // Function to show Upcoming Movies from API request
+    private func getUpcomingMovies() {
+        
+        APICaller.shared.getUpcomingMovies { results in
+            switch results {
+            case .success(let movies):
+                print(movies)
+            case .failure(let error):
+                print(error)
+            }
+        }
+    }
+    
+    // Function to show Top Rated Movies from API request
+    private func getTopRatedMovies() {
+        
+        APICaller.shared.getTopRated { results in
+            switch results {
+            case .success(let movies):
+                print(movies)
+            case .failure(let error):
+                print(error)
+            }
+        }
+    }
 
 }
 
+
+// Extension of Home View Controller to show table with Trending Movies, Trending TV, Popular...
 extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
     
     func numberOfSections(in tableView: UITableView) -> Int {
