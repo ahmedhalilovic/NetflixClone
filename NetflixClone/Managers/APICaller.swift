@@ -20,7 +20,7 @@ class APICaller {
     static let shared = APICaller()
     
     // Get array of Trending Movies from API
-    func getTrendingMovies(completion: @escaping (Result<[Movie], Error>) -> Void) {
+    func getTrendingMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
         guard let url = URL(string: "\(Constant.baseURL)/3/trending/movie/day?api_key=\(Constant.API_KEY)") else { return }
         
         // Task for making url calls
@@ -32,11 +32,11 @@ class APICaller {
             // Converting data to JSON object so we can serialise it and use it more easily
             do {
                 
-                let results = try JSONDecoder().decode(TrendingMoviesResponse.self, from: data)
+                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
                 completion(.success(results.results))
                 
             }catch {
-                completion(.failure(error))
+                completion(.failure(APIError.failedToGetData))
             }
         }
         
@@ -45,7 +45,7 @@ class APICaller {
     }
     
     // Get array of Trending TV Shows from API
-    func getTrendingTVShows(completion: @escaping (Result<[TVShows], Error>) -> Void) {
+    func getTrendingTVShows(completion: @escaping (Result<[Title], Error>) -> Void) {
         guard let url = URL(string: "\(Constant.baseURL)/3/trending/tv/day?api_key=\(Constant.API_KEY)") else { return }
         
         // Task for making url calls
@@ -57,11 +57,11 @@ class APICaller {
             // Converting data to JSON object so we can serialise it and use it more easily
             do {
                 
-                let results = try JSONDecoder().decode(TVShowsResponse.self, from: data)
+                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
                 completion(.success(results.results))
                 
             } catch {
-                completion(.failure(error))
+                completion(.failure(APIError.failedToGetData))
             }
         }
         
@@ -71,7 +71,7 @@ class APICaller {
     
     
     // Get array of Popular Movies from API
-    func getPopular(completion: @escaping (Result<[Movie], Error>) -> Void) {
+    func getPopularMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
         guard let url = URL(string: "\(Constant.baseURL)/3/movie/popular?api_key=\(Constant.API_KEY)&language=en-US&page=1") else { return }
         
         // Task for making URL calls
@@ -81,10 +81,10 @@ class APICaller {
             }
             
             do {
-                let results = try JSONDecoder().decode(TrendingMoviesResponse.self, from: data)
-                print(results)
+                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
+                completion(.success(results.results))
             } catch {
-                print(error.localizedDescription)
+                completion(.failure(APIError.failedToGetData))
             }
         }
         
@@ -93,7 +93,7 @@ class APICaller {
     }
     
     // Get array of Upcoming Movies from API
-    func getUpcomingMovies(completion: @escaping (Result<[Movie], Error>) -> Void) {
+    func getUpcomingMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
         guard let url = URL(string: "\(Constant.baseURL)/3/movie/upcoming?api_key=\(Constant.API_KEY)&language=en-US&page=1") else { return }
         
         // Task for making URL calls
@@ -103,10 +103,10 @@ class APICaller {
             }
             
             do {
-                let results = try JSONDecoder().decode(TrendingMoviesResponse.self, from: data)
-                print(results)
+                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
+                completion(.success(results.results))
             } catch {
-                print(error.localizedDescription)
+                completion(.failure(APIError.failedToGetData))
             }
         }
         
@@ -115,7 +115,7 @@ class APICaller {
 
     
     // Get Top Rated Movies from API
-    func getTopRated(completion: @escaping (Result<[Movie], Error>) -> Void) {
+    func getTopRatedMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
         guard let url = URL(string: "\(Constant.baseURL)/3/movie/top_rated?api_key=\(Constant.API_KEY)&language=en-US&page=1") else { return }
         
         // Task for making URL calls
@@ -126,11 +126,11 @@ class APICaller {
             
             do {
                 
-                let results = try JSONDecoder().decode(TrendingMoviesResponse.self, from: data)
-                print(results)
-                
+                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
+                completion(.success(results.results))
+
             } catch {
-                print(error.localizedDescription)
+                completion(.failure(APIError.failedToGetData))
             }
         }
         
@@ -139,9 +139,3 @@ class APICaller {
     }
     
 }
-
-// popular
-// https://api.themoviedb.org/3/movie/popular?api_key=481e510b8fbfb491962e90775c075cc5&language=en-US&page=1
-
-//top rated
-//https://api.themoviedb.org/3/movie/top_rated?api_key=481e510b8fbfb491962e90775c075cc5&language=en-US&page=1

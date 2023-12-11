@@ -7,6 +7,14 @@
 
 import UIKit
 
+enum Section: Int {
+    case TrendingMovies = 0
+    case TrendingTV = 1
+    case Popular = 2
+    case Upcoming = 3
+    case TopRated = 4
+}
+
 class HomeViewController: UIViewController {
     
     let sectionTitles: [String] = ["Trending Movies","Trending TV", "Popular", "Upcoming Movies", "Top rated"]
@@ -29,11 +37,6 @@ class HomeViewController: UIViewController {
         let headerView = HeroHeaderUIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 450))
         homeFeedTable.tableHeaderView = headerView
         
-        getTrendingMovies()
-        getTrendingTVShows()
-        getPopularMovies()
-        getUpcomingMovies()
-        getTopRatedMovies()
     }
     
     private func configureNavBar() {
@@ -85,7 +88,7 @@ class HomeViewController: UIViewController {
     // Function to show Upcoming Movies from API request
     private func getPopularMovies() {
         
-        APICaller.shared.getPopular { results in
+        APICaller.shared.getPopularMovies { results in
             switch results {
             case .success(let movies):
                 print(movies)
@@ -111,7 +114,7 @@ class HomeViewController: UIViewController {
     // Function to show Top Rated Movies from API request
     private func getTopRatedMovies() {
         
-        APICaller.shared.getTopRated { results in
+        APICaller.shared.getTopRatedMovies { results in
             switch results {
             case .success(let movies):
                 print(movies)
@@ -141,6 +144,66 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
             return UITableViewCell()
         }
         
+        switch indexPath.section {
+        
+        case Section.TrendingMovies.rawValue:
+            
+            APICaller.shared.getTrendingMovies { result in
+                switch result {
+                case .success(let titles):
+                    cell.configure(with: titles)
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
+            
+        case Section.TrendingTV.rawValue:
+            
+            APICaller.shared.getTrendingTVShows { result in
+                switch result {
+                case .success(let titles):
+                    cell.configure(with: titles)
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
+            
+        case Section.Popular.rawValue:
+            
+            APICaller.shared.getPopularMovies { result in
+                switch result {
+                case .success(let titles):
+                    cell.configure(with: titles)
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
+            
+        case Section.Upcoming.rawValue:
+            
+            APICaller.shared.getUpcomingMovies { result in
+                switch result {
+                case .success(let titles):
+                    cell.configure(with: titles)
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
+            
+        case Section.TopRated.rawValue:
+            
+            APICaller.shared.getTopRatedMovies { result in
+                switch result {
+                case .success(let titles):
+                    cell.configure(with: titles)
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
+        default:
+            return UITableViewCell()
+        }
+        
         return cell
         
     }
@@ -153,7 +216,7 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
         40
     }
     
-    //Func to modify the header text that is found above every section in table sections (Trending movies, Popular...)
+    // Func to modify the header text that is found above every section in table sections (Trending movies, Popular...)
     func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
         guard let header = view as? UITableViewHeaderFooterView else { return }
         header.textLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
