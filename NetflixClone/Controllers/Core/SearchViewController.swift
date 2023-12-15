@@ -17,6 +17,15 @@ class SearchViewController: UIViewController {
         table.register(TitleTableViewCell.self, forCellReuseIdentifier: TitleTableViewCell.identifier)
         return table
     }()
+    
+    // Search field
+    private let searchController: UISearchController = {
+        let controller = UISearchController(searchResultsController: SearchResultsViewController())
+        controller.searchBar.placeholder = "Search for a Movie or a TV show"
+        controller.searchBar.searchBarStyle = .minimal
+        
+        return controller
+    }()
 
     override func viewDidLoad() {
         
@@ -32,8 +41,12 @@ class SearchViewController: UIViewController {
          */
         discoverTable.delegate = self
         discoverTable.dataSource = self
+        navigationItem.searchController = searchController
+        navigationController?.navigationBar.tintColor = .white
         
         fetchDiscoverMovies()
+        
+        searchController.searchResultsUpdater = self
     }
     
     
@@ -72,17 +85,74 @@ extension SearchViewController: UITableViewDelegate, UITableViewDataSource {
         }
         
         let title = titles[indexPath.row]
-        cell.configure(with: TitleViewModel(titleName: (title.title ?? title.original_title) ?? "Unknown name", posterURL: title.poster_path ?? ""))
-        
-//        let title = titles[indexPath.row]
-//        let model = TitleViewModel(titleName: (title.title ?? title.original_title) ?? "Unknown name", posterURL: title.poster_path ?? "")
-//        cell.configure(with: model)
+        let model = TitleViewModel(titleName: (title.title ?? title.original_title) ?? "Unknown name", posterURL: title.poster_path ?? "")
+        cell.configure(with: model)
         
         return cell
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return 140
+    }
+    
+    // Function that manages opening TitlePreviewController and showing us youtube trailer of selected movie poster
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let title = titles[indexPath.row]
+        
+        guard let titleName = title.title ?? title.original_title else {
+            return
+        }
+        
+        APICaller.shared.getMovie(with: titleName) { [weak self] result in
+            switch result {
+            case .success(let videoElement):
+                
+                DispatchQueue.main.async {
+                    let vc = TitlePreviewViewController()
+                    vc.configure(with: TitlePreviewViewModel(title: titleName, youtubeView: videoElement, titleOverview: title.overview ?? ""))
+                    self?.navigationController?.pushViewController(vc, animated: true)
+                }
+                
+            case .failure(let error):
+                print(error.localizedDescription)
+            }
+        }
+    }
+    
+}
+
+extension SearchViewController: UISearchResultsUpdating, SearchResultsViewControllerDelegate {
+    
+    func updateSearchResults(for searchController: UISearchController) {
+        let searchBar = searchController.searchBar
+        
+        guard let query = searchBar.text,
+              !query.trimmingCharacters(in: .whitespaces).isEmpty,
+              query.trimmingCharacters(in: .whitespaces).count >= 3,
+              let resultsController = searchController.searchResultsController as? SearchResultsViewController else { return }
+        resultsController.delegate = self
+        
+        APICaller.shared.search(with: query) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let titles):
+                    resultsController.titles = titles
+                    resultsController.searchResultsCollectionView.reloadData()
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
+        }
+    }
+    
+    // Function that
+    func searchResultsViewControllerDiDTapItem(_ viewModel: TitlePreviewViewModel) {
+        
+        DispatchQueue.main.async { [weak self] in
+            let vc = TitlePreviewViewController()
+            vc.configure(with: viewModel)
+            self?.navigationController?.pushViewController(vc, animated: true)
+        }
     }
     
 }
