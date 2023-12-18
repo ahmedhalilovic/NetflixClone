@@ -83,7 +83,7 @@ extension CollectionViewTableViewCell: UICollectionViewDelegate, UICollectionVie
         collectionView.deselectItem(at: indexPath, animated: true)
         
         let title = titles[indexPath.row]
-        guard let titleName = title.title ?? title.original_title else {
+        guard let titleName = title.title ?? title.original_title ?? title.original_name else {
             return
         }
         
@@ -107,3 +107,7 @@ extension CollectionViewTableViewCell: UICollectionViewDelegate, UICollectionVie
     }
     
 }
+
+
+ // URL for movie and tv shows api's
+ // https://www.themoviedb.org/settings/api

@@ -20,7 +20,7 @@ class HomeViewController: UIViewController {
     // For the header view that generates new poster every time we enter the app
     private var randomTrendingMovie: Title?
     private var headerView: HeroHeaderUIView?
-    
+
     let sectionTitles: [String] = ["Trending Movies","Trending TV", "Popular", "Upcoming Movies", "Top rated"]
     
     private let homeFeedTable: UITableView = {
@@ -80,6 +80,7 @@ class HomeViewController: UIViewController {
         homeFeedTable.frame = view.bounds
     }
     
+    // MARK: Display movie posters to table from APICaller
     //Function to show Trending Movies from API request
     private func getTrendingMovies() {
         
@@ -147,6 +148,7 @@ class HomeViewController: UIViewController {
 
 }
 
+// MARK: Table with Movies and TV shows
 // Extension of Home View Controller to show table with Trending Movies, Trending TV, Popular...
 extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
     
@@ -264,6 +266,7 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
 }
 
 
+// When poster image is tapped, youtube trailer from that movie/tv is displayed
 extension HomeViewController: CollectionViewTableViewCellDelegate {
     func CollectionViewTableViewCellDidTapCell(_ cell: CollectionViewTableViewCell, viewModel: TitlePreviewViewModel) {
         DispatchQueue.main.async { [weak self] in
@@ -272,4 +275,8 @@ extension HomeViewController: CollectionViewTableViewCellDelegate {
             self?.navigationController?.pushViewController(vc, animated: true)
         }
     }
+    
+    
 }
+
+
