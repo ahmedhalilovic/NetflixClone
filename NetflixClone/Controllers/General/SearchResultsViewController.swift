@@ -78,9 +78,6 @@ extension SearchResultsViewController: UICollectionViewDelegate, UICollectionVie
             }
         }
         
-        
-        
-        
     }
-    
+
 }

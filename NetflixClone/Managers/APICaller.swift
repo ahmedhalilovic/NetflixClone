@@ -209,3 +209,7 @@ class APICaller {
     }
     
 }
+
+// URL for movie and tv shows api's
+// https://www.themoviedb.org/settings/api
+
