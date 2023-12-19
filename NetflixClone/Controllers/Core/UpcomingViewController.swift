@@ -12,7 +12,6 @@ class UpcomingViewController: UIViewController {
     private var titles: [Title] = [Title]()
     
     private let upcomingTable: UITableView = {
-       
         let table = UITableView()
         table.register(TitleTableViewCell.self, forCellReuseIdentifier: TitleTableViewCell.identifier)
         return table
@@ -97,6 +96,8 @@ extension UpcomingViewController: UITableViewDelegate, UITableViewDataSource {
         }
         
     }
+    
+    
     
 }
 
