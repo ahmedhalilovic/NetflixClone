@@ -11,7 +11,7 @@ This is a mobile application inspired by Netflix, allowing users to browse and d
     * **Downloads:** Download movies and TV shows for offline viewing. (Functionality not fully implemented)
 * Hero Header displaying a random trending movie poster
 * Basic table view with sections
-* Ability to tap on a movie poster and see a YouTube trailer preview  (Functionality not fully implemented)
+* Ability to tap on a movie poster and see a YouTube trailer preview
 
 **Requirements:**
 
