@@ -2,97 +2,124 @@
 //  DataPersistenceManager.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 18. 12. 2023..
+//  Created by Ahmed Halilovic on 18. 12. 2023..
 //
 
 import Foundation
-import UIKit
 import CoreData
 
-class DataPersistenceManager {
-    
-    enum DatabaseError: Error {
+extension Notification.Name {
+    /// Posted whenever the list of downloaded titles changes.
+    static let downloadsDidChange = Notification.Name("DataPersistenceManager.downloadsDidChange")
+}
+
+final class DataPersistenceManager {
+
+    enum DatabaseError: LocalizedError {
         case failedToSaveData
         case failedToFetchData
         case failedToDeleteData
+        case alreadyDownloaded
+
+        var errorDescription: String? {
+            switch self {
+            case .failedToSaveData: return "The title could not be saved."
+            case .failedToFetchData: return "Downloads could not be loaded."
+            case .failedToDeleteData: return "The title could not be deleted."
+            case .alreadyDownloaded: return "This title is already in your downloads."
+            }
+        }
     }
-    
+
     static let shared = DataPersistenceManager()
-    
-    // Let's say we "import" data to the CoreData with this function
-    func downloadTitleWith(model: Title, completion: @escaping (Result<Void, Error>) -> Void) {
-        
-        guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
-            return
+
+    private let container: NSPersistentContainer
+
+    private var context: NSManagedObjectContext {
+        container.viewContext
+    }
+
+    private init() {
+        container = NSPersistentContainer(name: "NetflixCloneModel")
+        container.loadPersistentStores { _, error in
+            if let error {
+                assertionFailure("Failed to load persistent store: \(error)")
+            }
         }
-        
-        let context = appDelegate.persistentContainer.viewContext
-        
-        // "Hey context manager we are creating a title item under your supervision"
+    }
+
+    /// Saves a title to the local downloads store. Throws `.alreadyDownloaded` for duplicates.
+    func download(_ title: Title) throws {
+        guard try isDownloaded(id: title.id) == false else {
+            throw DatabaseError.alreadyDownloaded
+        }
+
         let item = TitleItem(context: context)
-        
-        item.id = Int64(model.id)
-        item.original_title = model.original_title
-        item.original_name = model.original_name
-        item.title = model.title
-        item.overview = model.overview
-        item.poster_path = model.poster_path
-        item.release_date = model.release_date
-        item.original_language = model.original_language
-        item.vote_average = Double(model.vote_average)
-        item.vote_count = Int64(model.vote_count)
-        
-        // Saving data to the CoreData
+        item.id = Int64(title.id)
+        item.title = title.title
+        item.original_title = title.originalTitle
+        item.original_name = title.originalName
+        item.original_language = title.originalLanguage
+        item.overview = title.overview
+        item.poster_path = title.posterPath
+        item.release_date = title.releaseDate
+        item.vote_average = title.voteAverage ?? 0
+        item.vote_count = Int64(title.voteCount ?? 0)
+
         do {
             try context.save()
-            completion(.success(())) // It expects Void but swift allows for "()" to be passed
         } catch {
-            completion(.failure(DatabaseError.failedToSaveData))
+            context.rollback()
+            throw DatabaseError.failedToSaveData
         }
-        
+
+        NotificationCenter.default.post(name: .downloadsDidChange, object: nil)
     }
-    
-    // Fetch data/titles from the CoreData
-    func fetchingTitlesFromDataBase(completion: @escaping (Result<[TitleItem], Error>) -> Void) {
-        
-        guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
-            return
-        }
-        
-        let context = appDelegate.persistentContainer.viewContext
-        
-        let request: NSFetchRequest<TitleItem>
-        
-        request = TitleItem.fetchRequest()
-        
+
+    func fetchDownloadedTitles() throws -> [TitleItem] {
         do {
-            
-            let titles = try context.fetch(request)
-            completion(.success(titles))
-            
+            return try context.fetch(TitleItem.fetchRequest())
         } catch {
-            completion(.failure(DatabaseError.failedToFetchData))
+            throw DatabaseError.failedToFetchData
         }
-        
     }
-    
-    func deleteTitleWith(model: TitleItem, completion: @escaping (Result<Void, Error>) -> Void) {
-        
-        guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
-            return
-        }
-        
-        let context = appDelegate.persistentContainer.viewContext
-        
-        context.delete(model) // asking the database manager to delete certain object
-        
+
+    func delete(_ item: TitleItem) throws {
+        context.delete(item)
         do {
             try context.save()
-            completion(.success(()))
         } catch {
-            completion(.failure(DatabaseError.failedToDeleteData))
+            context.rollback()
+            throw DatabaseError.failedToDeleteData
         }
-        
+
+        NotificationCenter.default.post(name: .downloadsDidChange, object: nil)
     }
-    
+
+    func isDownloaded(id: Int) throws -> Bool {
+        let request = TitleItem.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %d", id)
+        request.fetchLimit = 1
+        do {
+            return try context.count(for: request) > 0
+        } catch {
+            throw DatabaseError.failedToFetchData
+        }
+    }
+}
+
+extension TitleItem {
+    /// Bridges the Core Data item back to the API model so both share the same view models.
+    var asTitle: Title {
+        Title(id: Int(id),
+              title: title,
+              originalLanguage: original_language,
+              originalTitle: original_title,
+              originalName: original_name,
+              overview: overview,
+              posterPath: poster_path,
+              releaseDate: release_date,
+              voteAverage: vote_average,
+              voteCount: Int(vote_count))
+    }
 }

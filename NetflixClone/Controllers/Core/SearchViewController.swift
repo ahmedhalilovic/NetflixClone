@@ -2,157 +2,140 @@
 //  SearchViewController.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 4. 12. 2023..
+//  Created by Ahmed Halilovic on 4. 12. 2023..
 //
 
 import UIKit
 
 class SearchViewController: UIViewController {
-    
-    private var titles: [Title] = [Title]()
-    
+
+    private var titles: [Title] = []
+
+    /// Pending search request; cancelled whenever the query changes (debounce).
+    private var searchTask: Task<Void, Never>?
+
     private let discoverTable: UITableView = {
-        
         let table = UITableView()
         table.register(TitleTableViewCell.self, forCellReuseIdentifier: TitleTableViewCell.identifier)
+        table.separatorStyle = .none
         return table
     }()
-    
-    // Search field
+
     private let searchController: UISearchController = {
         let controller = UISearchController(searchResultsController: SearchResultsViewController())
-        controller.searchBar.placeholder = "Search for a Movie or a TV show"
-        controller.searchBar.searchBarStyle = .minimal
-        
+        controller.searchBar.placeholder = "Search for a movie or a TV show"
+        controller.obscuresBackgroundDuringPresentation = false
         return controller
     }()
 
     override func viewDidLoad() {
-        
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         title = "Search"
         navigationController?.navigationBar.prefersLargeTitles = true
-        navigationController?.navigationItem.largeTitleDisplayMode = .always
+        navigationItem.largeTitleDisplayMode = .automatic
 
         view.addSubview(discoverTable)
-        /*
-         Set the delegate and dataSource for the TableView to be that controller, so we can implement all the functions we are going to use to pass the data and pass the number of rows.
-         */
         discoverTable.delegate = self
         discoverTable.dataSource = self
+
         navigationItem.searchController = searchController
-        navigationController?.navigationBar.tintColor = .white
-        
-        fetchDiscoverMovies()
-        
+        navigationItem.hidesSearchBarWhenScrolling = false
         searchController.searchResultsUpdater = self
+
+        fetchDiscoverMovies()
     }
-    
-    
-    
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         discoverTable.frame = view.bounds
     }
-    
+
     private func fetchDiscoverMovies() {
-        APICaller.shared.getDiscoverMovies { [weak self] result in
-            switch result {
-            case .success(let titles):
+        Task { @MainActor [weak self] in
+            do {
+                let titles = try await APICaller.shared.titles(for: .discoverMovies)
                 self?.titles = titles
-                DispatchQueue.main.async {
-                    self?.discoverTable.reloadData()
-                }
-                
-            case .failure(let error):
-                print(error.localizedDescription)
+                self?.discoverTable.reloadData()
+            } catch {
+                self?.presentErrorAlert(error)
             }
         }
     }
-    
 }
 
+// MARK: - Discover table
 
 extension SearchViewController: UITableViewDelegate, UITableViewDataSource {
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return titles.count
     }
-    
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: TitleTableViewCell.identifier, for: indexPath) as? TitleTableViewCell else {
-            return TitleTableViewCell()
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: TitleTableViewCell.identifier,
+                                                       for: indexPath) as? TitleTableViewCell else {
+            return UITableViewCell()
         }
-        
-        let title = titles[indexPath.row]
-        let model = TitleViewModel(titleName: (title.title ?? title.original_title) ?? "Unknown name", posterURL: title.poster_path ?? "")
-        cell.configure(with: model)
-        
+
+        cell.configure(with: TitleViewModel(title: titles[indexPath.row]))
         return cell
     }
-    
-    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        return 140
-    }
-    
-    // Function that manages opening TitlePreviewController and showing us youtube trailer of selected movie poster
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let title = titles[indexPath.row]
-        
-        guard let titleName = title.title ?? title.original_title else {
-            return
-        }
-        
-        APICaller.shared.getMovie(with: titleName) { [weak self] result in
-            switch result {
-            case .success(let videoElement):
-                
-                DispatchQueue.main.async {
-                    let vc = TitlePreviewViewController()
-                    vc.configure(with: TitlePreviewViewModel(title: titleName, youtubeView: videoElement, titleOverview: title.overview ?? ""))
-                    self?.navigationController?.pushViewController(vc, animated: true)
-                }
-                
-            case .failure(let error):
-                print(error.localizedDescription)
-            }
-        }
-    }
-    
-}
 
-extension SearchViewController: UISearchResultsUpdating, SearchResultsViewControllerDelegate {
-    
-    func updateSearchResults(for searchController: UISearchController) {
-        let searchBar = searchController.searchBar
-        
-        guard let query = searchBar.text,
-              !query.trimmingCharacters(in: .whitespaces).isEmpty,
-              query.trimmingCharacters(in: .whitespaces).count >= 3,
-              let resultsController = searchController.searchResultsController as? SearchResultsViewController else { return }
-        resultsController.delegate = self
-        
-        APICaller.shared.search(with: query) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let titles):
-                    resultsController.titles = titles
-                    resultsController.searchResultsCollectionView.reloadData()
-                case .failure(let error):
-                    print(error.localizedDescription)
-                }
-            }
-        }
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        return 150
     }
-    
-    // Function that
-    func searchResultsViewControllerDiDTapItem(_ viewModel: TitlePreviewViewModel) {
-        
-        DispatchQueue.main.async { [weak self] in
+
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        let title = titles[indexPath.row]
+
+        Task { @MainActor [weak self] in
+            let trailer = try? await APICaller.shared.trailer(forTitleNamed: title.displayTitle)
             let vc = TitlePreviewViewController()
-            vc.configure(with: viewModel)
+            vc.configure(with: TitlePreviewViewModel(title: title, trailer: trailer))
             self?.navigationController?.pushViewController(vc, animated: true)
         }
     }
-    
+}
+
+// MARK: - Live search results
+
+extension SearchViewController: UISearchResultsUpdating, SearchResultsViewControllerDelegate {
+
+    func updateSearchResults(for searchController: UISearchController) {
+        guard let resultsController = searchController.searchResultsController as? SearchResultsViewController else {
+            return
+        }
+        resultsController.delegate = self
+
+        let query = (searchController.searchBar.text ?? "").trimmingCharacters(in: .whitespaces)
+        searchTask?.cancel()
+
+        guard query.count >= 3 else {
+            resultsController.update(with: [])
+            return
+        }
+
+        searchTask = Task { @MainActor in
+            // Small debounce so we don't fire a request per keystroke.
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+
+            do {
+                let titles = try await APICaller.shared.titles(for: .search(query: query))
+                guard !Task.isCancelled else { return }
+                resultsController.update(with: titles)
+            } catch {
+                // Ignore failed/cancelled queries; the user is still typing.
+            }
+        }
+    }
+
+    func searchResultsViewController(_ controller: SearchResultsViewController,
+                                     didSelect viewModel: TitlePreviewViewModel) {
+        let vc = TitlePreviewViewController()
+        vc.configure(with: viewModel)
+        navigationController?.pushViewController(vc, animated: true)
+    }
 }

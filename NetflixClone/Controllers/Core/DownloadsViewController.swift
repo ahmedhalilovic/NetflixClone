@@ -2,123 +2,130 @@
 //  DownloadsViewController.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 4. 12. 2023..
+//  Created by Ahmed Halilovic on 4. 12. 2023..
 //
 
 import UIKit
 
 class DownloadsViewController: UIViewController {
-    
-    private var titles: [TitleItem] = [TitleItem]()
-    
+
+    private var titles: [TitleItem] = []
+
+    private var downloadsObserver: NSObjectProtocol?
+
     private let downloadedTable: UITableView = {
-       
         let table = UITableView()
         table.register(TitleTableViewCell.self, forCellReuseIdentifier: TitleTableViewCell.identifier)
+        table.separatorStyle = .none
         return table
     }()
 
     override func viewDidLoad() {
-        
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         title = "Downloads"
-        view.addSubview(downloadedTable)
         navigationController?.navigationBar.prefersLargeTitles = true
-        navigationController?.navigationItem.largeTitleDisplayMode = .always
+        navigationItem.largeTitleDisplayMode = .automatic
+
+        view.addSubview(downloadedTable)
         downloadedTable.delegate = self
         downloadedTable.dataSource = self
-        fetchLocalStorageForDownload()
-        
-        // Tracking notification from function "downloadTitleAt", and when notification is there, the downloads section updates automatically and shows downloaded titles
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("downloaded"), object: nil, queue: nil) { _ in
-            self.fetchLocalStorageForDownload()
-        }
-    }
-    
-    private func fetchLocalStorageForDownload() {
-        DataPersistenceManager.shared.fetchingTitlesFromDataBase { [weak self] result in
-            switch result {
-            case .success(let titles):
-                self?.titles = titles
-                DispatchQueue.main.async {
-                    self?.downloadedTable.reloadData()
-                }
-            case .failure(let error):
-                print(error.localizedDescription)
+
+        fetchDownloads()
+
+        downloadsObserver = NotificationCenter.default.addObserver(
+            forName: .downloadsDidChange,
+            object: nil,
+            queue: .main) { [weak self] _ in
+                self?.fetchDownloads()
             }
+    }
+
+    deinit {
+        if let downloadsObserver {
+            NotificationCenter.default.removeObserver(downloadsObserver)
         }
     }
-    
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         downloadedTable.frame = view.bounds
     }
 
+    private func fetchDownloads() {
+        do {
+            titles = try DataPersistenceManager.shared.fetchDownloadedTitles()
+            downloadedTable.reloadData()
+            updateEmptyState()
+        } catch {
+            presentErrorAlert(error)
+        }
+    }
+
+    /// Shows the system empty state when nothing has been downloaded yet.
+    private func updateEmptyState() {
+        if titles.isEmpty {
+            var config = UIContentUnavailableConfiguration.empty()
+            config.image = UIImage(systemName: "arrow.down.circle")
+            config.text = "No Downloads"
+            config.secondaryText = "Movies and shows you download appear here.\nLong-press any poster to download it."
+            contentUnavailableConfiguration = config
+        } else {
+            contentUnavailableConfiguration = nil
+        }
+    }
 }
 
-// Table shown in downloads tab
 extension DownloadsViewController: UITableViewDelegate, UITableViewDataSource {
-    
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return titles.count
     }
-    
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: TitleTableViewCell.identifier, for: indexPath) as? TitleTableViewCell else {
-            return TitleTableViewCell()
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: TitleTableViewCell.identifier,
+                                                       for: indexPath) as? TitleTableViewCell else {
+            return UITableViewCell()
         }
-        
-        let title = titles[indexPath.row]
-        cell.configure(with: TitleViewModel(titleName: title.title ?? title.original_title ?? title.original_name ?? "Unknown title name", posterURL: title.poster_path ?? ""))
+
+        cell.configure(with: TitleViewModel(item: titles[indexPath.row]))
         return cell
     }
-    
+
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return 150
     }
-    
-    // Function to delete titles from Download tab section
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        switch editingStyle {
-        case .delete:
-            DataPersistenceManager.shared.deleteTitleWith(model: titles[indexPath.row]) { [weak self] result in
-                switch result {
-                case .success():
-                    print("Deleted from the database")
-                case .failure(let error):
-                    print(error.localizedDescription)
-                }
-                self?.titles.remove(at: indexPath.row) // first remove title from the array itself
-            tableView.deleteRows(at: [indexPath], with: .fade) // then from the tableView itself
+
+    func tableView(_ tableView: UITableView,
+                   trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
+            guard let self else {
+                completion(false)
+                return
             }
-        default:
-            break;
+
+            do {
+                try DataPersistenceManager.shared.delete(self.titles[indexPath.row])
+                completion(true)
+            } catch {
+                self.presentErrorAlert(error)
+                completion(false)
+            }
         }
+        deleteAction.image = UIImage(systemName: "trash")
+
+        return UISwipeActionsConfiguration(actions: [deleteAction])
     }
-    
+
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        
-        let title = titles[indexPath.row]
-        
-        guard let titleName = title.original_title ?? title.original_name ?? title.title else {
-            return
+        tableView.deselectRow(at: indexPath, animated: true)
+        let title = titles[indexPath.row].asTitle
+
+        Task { @MainActor [weak self] in
+            let trailer = try? await APICaller.shared.trailer(forTitleNamed: title.displayTitle)
+            let vc = TitlePreviewViewController()
+            vc.configure(with: TitlePreviewViewModel(title: title, trailer: trailer))
+            self?.navigationController?.pushViewController(vc, animated: true)
         }
-        
-        APICaller.shared.getMovie(with: titleName) { [weak self] result in
-            switch result {
-            case .success(let videoElement):
-                
-                DispatchQueue.main.async {
-                    let vc = TitlePreviewViewController()
-                    vc.configure(with: TitlePreviewViewModel(title: titleName, youtubeView: videoElement, titleOverview: title.overview ?? ""))
-                    self?.navigationController?.pushViewController(vc, animated: true)
-                }
-            case .failure(let error):
-                print(error.localizedDescription)
-            }
-        }
-        
     }
-    
 }

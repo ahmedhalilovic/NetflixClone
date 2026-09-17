@@ -2,38 +2,21 @@
 //  HeroHeaderUIView.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 5. 12. 2023..
+//  Created by Ahmed Halilovic on 5. 12. 2023..
 //
 
 import UIKit
+import SDWebImage
+
+protocol HeroHeaderUIViewDelegate: AnyObject {
+    func heroHeaderDidTapPlay(_ headerView: HeroHeaderUIView)
+    func heroHeaderDidTapDownload(_ headerView: HeroHeaderUIView)
+}
 
 class HeroHeaderUIView: UIView {
-    
-    // Download button
-    private let downloadButton: UIButton = {
-       
-        let button = UIButton()
-        button.setTitle("Dwonload", for: .normal)
-        button.layer.borderColor = UIColor.white.cgColor
-        button.layer.borderWidth = 1
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.layer.cornerRadius = 5
-        return button
-    }()
-    
-    // Play button
-    private let playButton: UIButton = {
-       
-        let button = UIButton()
-        button.setTitle("Play", for: .normal)
-        button.layer.borderColor = UIColor.white.cgColor
-        button.layer.borderWidth = 1
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.layer.cornerRadius = 5
-        return button
-    }()
-    
-    // Image header variable
+
+    weak var delegate: HeroHeaderUIViewDelegate?
+
     private let heroImageView: UIImageView = {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFill
@@ -41,63 +24,104 @@ class HeroHeaderUIView: UIView {
         imageView.image = UIImage(named: "heroImage")
         return imageView
     }()
-    
-    // Gradient color over heroImageView
-    private func addGradient() {
-        let gradientLayer = CAGradientLayer()
-        gradientLayer.colors = [
+
+    private let gradientLayer: CAGradientLayer = {
+        let gradient = CAGradientLayer()
+        gradient.colors = [
             UIColor.clear.cgColor,
+            UIColor.systemBackground.withAlphaComponent(0.85).cgColor,
             UIColor.systemBackground.cgColor
         ]
-        gradientLayer.frame = bounds
-        layer.addSublayer(gradientLayer)
-    }
-    
-    // Adding subview to the UIView
+        gradient.locations = [0.5, 0.85, 1.0]
+        return gradient
+    }()
+
+    private let titleLabel: UILabel = {
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = .systemFont(ofSize: 28, weight: .heavy)
+        label.textColor = .label
+        label.textAlignment = .center
+        label.numberOfLines = 2
+        return label
+    }()
+
+    // iOS 26 Liquid Glass buttons.
+    private lazy var playButton: UIButton = {
+        var config = UIButton.Configuration.prominentGlass()
+        config.title = "Play"
+        config.image = UIImage(systemName: "play.fill")
+        config.imagePadding = 8
+        config.baseBackgroundColor = .white
+        config.baseForegroundColor = .black
+        config.cornerStyle = .capsule
+        config.buttonSize = .large
+
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.heroHeaderDidTapPlay(self)
+        }, for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var downloadButton: UIButton = {
+        var config = UIButton.Configuration.glass()
+        config.title = "Download"
+        config.image = UIImage(systemName: "arrow.down.to.line")
+        config.imagePadding = 8
+        config.cornerStyle = .capsule
+        config.buttonSize = .large
+
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.delegate?.heroHeaderDidTapDownload(self)
+        }, for: .touchUpInside)
+        return button
+    }()
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         addSubview(heroImageView)
-        addGradient()
+        layer.addSublayer(gradientLayer)
+        addSubview(titleLabel)
         addSubview(playButton)
         addSubview(downloadButton)
-        applyConstrains()
+        applyConstraints()
     }
-    
-    // Constrains for button to always be in leading anchor, based on language(ex. eng vs arabic)
-    private func applyConstrains() {
-        
-        let playButtonConstrains = [
-            playButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 70),
-            playButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -50),
-            playButton.widthAnchor.constraint(equalToConstant: 120)
-        ]
-        
-        let downloadButtonConstrains = [
-            downloadButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -70),
-            downloadButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -50),
-            downloadButton.widthAnchor.constraint(equalToConstant: 120)
-        ]
-        
-        // Activate constraints
-        NSLayoutConstraint.activate(playButtonConstrains)
-        NSLayoutConstraint.activate(downloadButtonConstrains)
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
-    
-    public func configure(with model: TitleViewModel) {
-        guard let url = URL(string: "https://image.tmdb.org/t/p/w500\(model.posterURL)") else { return
-        }
-        
-        heroImageView.sd_setImage(with: url, completed: nil)
+
+    private func applyConstraints() {
+        NSLayoutConstraint.activate([
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
+            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+            titleLabel.bottomAnchor.constraint(equalTo: playButton.topAnchor, constant: -16),
+
+            playButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
+            playButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -24),
+            playButton.widthAnchor.constraint(equalTo: downloadButton.widthAnchor),
+
+            downloadButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 12),
+            downloadButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+            downloadButton.bottomAnchor.constraint(equalTo: playButton.bottomAnchor)
+        ])
     }
-    
+
     override func layoutSubviews() {
         super.layoutSubviews()
         heroImageView.frame = bounds
-    }
-    
-    // Initialiser
-    required init?(coder: NSCoder) {
-        fatalError()
+        gradientLayer.frame = bounds
     }
 
+    func configure(with title: Title) {
+        titleLabel.text = title.displayTitle
+        heroImageView.sd_setImage(with: title.posterURL,
+                                  placeholderImage: UIImage(named: "heroImage"))
+    }
 }

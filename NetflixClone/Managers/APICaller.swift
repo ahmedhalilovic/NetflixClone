@@ -2,214 +2,137 @@
 //  APICaller.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 6. 12. 2023..
+//  Created by Ahmed Halilovic on 6. 12. 2023..
 //
 
 import Foundation
 
-struct Constant {
-    static let API_KEY = "***REMOVED-TMDB-KEY***"
-    static let baseURL = "https://api.themoviedb.org"
-    static let YoutubeAPI_KEY = "***REMOVED-YOUTUBE-KEY***"
-    static let YoutubeBaseURL = "https://youtube.googleapis.com/youtube/v3/search?"
+enum APIConstants {
+    // Keys live in `Secrets.swift` (gitignored). Copy `Secrets.swift.example` to get started.
+    static let tmdbAPIKey = Secrets.tmdbAPIKey
+    static let tmdbBaseURL = "https://api.themoviedb.org/3"
+    static let youtubeAPIKey = Secrets.youtubeAPIKey
+    static let youtubeSearchURL = "https://youtube.googleapis.com/youtube/v3/search"
+    static let imageBaseURL = "https://image.tmdb.org/t/p/w500"
 }
 
-enum APIError: Error {
-    case failedToGetData
+enum APIError: LocalizedError {
+    case invalidURL
+    case requestFailed
+    case decodingFailed
+    case noResults
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "The request URL could not be built."
+        case .requestFailed: return "The network request failed. Check your connection and try again."
+        case .decodingFailed: return "The server response could not be read."
+        case .noResults: return "No results were found."
+        }
+    }
 }
 
-class APICaller {
+final class APICaller {
+
     static let shared = APICaller()
-    
-    // Get array of Trending Movies from API
-    func getTrendingMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
-        guard let url = URL(string: "\(Constant.baseURL)/3/trending/movie/day?api_key=\(Constant.API_KEY)") else { return }
-        
-        // Task for making url calls
-        let task = URLSession.shared.dataTask(with: URLRequest(url: url)) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
-            
-            // Converting data to JSON object so we can serialise it and use it more easily
-            do {
-                
-                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
-                completion(.success(results.results))
-                
-            }catch {
-                completion(.failure(APIError.failedToGetData))
-            }
-        }
-        
-        task.resume()
 
-    }
-    
-    // Get array of Trending TV Shows from API
-    func getTrendingTVShows(completion: @escaping (Result<[Title], Error>) -> Void) {
-        guard let url = URL(string: "\(Constant.baseURL)/3/trending/tv/day?api_key=\(Constant.API_KEY)") else { return }
-        
-        // Task for making url calls
-        let task = URLSession.shared.dataTask(with: URLRequest(url: url)) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
-            
-            // Converting data to JSON object so we can serialise it and use it more easily
-            do {
-                
-                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
-                completion(.success(results.results))
-                
-            } catch {
-                completion(.failure(APIError.failedToGetData))
+    enum TitlesEndpoint {
+        case trendingMovies
+        case trendingTV
+        case popularMovies
+        case upcomingMovies
+        case topRatedMovies
+        case discoverMovies
+        case search(query: String)
+
+        var path: String {
+            switch self {
+            case .trendingMovies: return "/trending/movie/day"
+            case .trendingTV: return "/trending/tv/day"
+            case .popularMovies: return "/movie/popular"
+            case .upcomingMovies: return "/movie/upcoming"
+            case .topRatedMovies: return "/movie/top_rated"
+            case .discoverMovies: return "/discover/movie"
+            case .search: return "/search/movie"
             }
         }
-        
-        task.resume()
-        
-    }
-    
-    
-    // Get array of Popular Movies from API
-    func getPopularMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
-        guard let url = URL(string: "\(Constant.baseURL)/3/movie/popular?api_key=\(Constant.API_KEY)&language=en-US&page=1") else { return }
-        
-        // Task for making URL calls
-        let task = URLSession.shared.dataTask(with: url) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
-            
-            do {
-                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
-                completion(.success(results.results))
-            } catch {
-                completion(.failure(APIError.failedToGetData))
+
+        var queryItems: [URLQueryItem] {
+            switch self {
+            case .trendingMovies, .trendingTV:
+                return []
+            case .popularMovies, .upcomingMovies, .topRatedMovies:
+                return [URLQueryItem(name: "language", value: "en-US"),
+                        URLQueryItem(name: "page", value: "1")]
+            case .discoverMovies:
+                return [URLQueryItem(name: "language", value: "en-US"),
+                        URLQueryItem(name: "page", value: "1"),
+                        URLQueryItem(name: "include_adult", value: "false"),
+                        URLQueryItem(name: "sort_by", value: "popularity.desc")]
+            case .search(let query):
+                return [URLQueryItem(name: "query", value: query)]
             }
         }
-        
-        task.resume()
-        
-    }
-    
-    // Get array of Upcoming Movies from API
-    func getUpcomingMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
-        guard let url = URL(string: "\(Constant.baseURL)/3/movie/upcoming?api_key=\(Constant.API_KEY)&language=en-US&page=1") else { return }
-        
-        // Task for making URL calls
-        let task = URLSession.shared.dataTask(with: URLRequest(url: url)) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
-            
-            do {
-                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
-                completion(.success(results.results))
-            } catch {
-                completion(.failure(APIError.failedToGetData))
-            }
-        }
-        
-        task.resume()
     }
 
-    
-    // Get Top Rated Movies from API
-    func getTopRatedMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
-        guard let url = URL(string: "\(Constant.baseURL)/3/movie/top_rated?api_key=\(Constant.API_KEY)&language=en-US&page=1") else { return }
-        
-        // Task for making URL calls
-        let task = URLSession.shared.dataTask(with: url) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
-            
-            do {
-                
-                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
-                completion(.success(results.results))
-            } catch {
-                completion(.failure(APIError.failedToGetData))
-            }
-        }
-        
-        task.resume()
-        
-    }
-    
-    func getDiscoverMovies(completion: @escaping (Result<[Title], Error>) -> Void) {
-        guard let url = URL(string: "\(Constant.baseURL)/3/discover/movie?api_key=\(Constant.API_KEY)&include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc&with_watch_monetization_types=filtrate") else { return }
-        
-        // Task for making URL calls
-        let task = URLSession.shared.dataTask(with: url) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
-            
-            do {
-                let results = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
-                completion(.success(results.results))
-            }catch {
-                completion(.failure(APIError.failedToGetData))
-            }
-        }
-        
-        task.resume()
-        
-    }
-    
-    func search(with query: String, completion: @escaping (Result<[Title], Error>) -> Void) {
-        
-        guard let query = query.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) else { return }
-        guard let url = URL(string: "\(Constant.baseURL)/3/search/movie?api_key=\(Constant.API_KEY)&query=\(query)") else { return }
-        
-        // Task that receives the contents of a URL based on the specified URL request object, and calls a handler upon completion.
-        let task = URLSession.shared.dataTask(with: URLRequest(url: url)) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
-            
-            // Serialise the request using the object that we have (TrendingTitleResponse). With completion, send the array of titles to the caller
-            do {
-                let result = try JSONDecoder().decode(TrendingTitleResponse.self, from: data)
-                completion(.success(result.results))
-            }catch {
-                completion(.failure(APIError.failedToGetData))
-            }
-        }
-        
-        task.resume()
-        
-    }
-    
-    func getMovie(with query: String, completion: @escaping (Result<VideoElement, Error>) -> Void) {
-        
-        // .urlHostAllowed will deal with the whitespaces and will replace them with %20
-        guard let query = query.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) else { return }
-        guard let url = URL(string: "\(Constant.YoutubeBaseURL)q=\(query)&key=\(Constant.YoutubeAPI_KEY)") else { return }
-        
-        let task = URLSession.shared.dataTask(with: URLRequest(url: url)) { data, _, error in
-            guard let data = data, error == nil else {
-                return
-            }
+    private let session = URLSession.shared
 
-            do {
-                let results = try JSONDecoder().decode(YoutubeSearchResponse.self, from: data)
-                completion(.success(results.items[0]))
-                
-            }catch {
-                completion(.failure(error))
-                print(error.localizedDescription)
-            }
-        }
-        
-        task.resume()
+    private let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }()
+
+    private init() {}
+
+    /// Fetches a list of titles from TMDB for the given endpoint.
+    func titles(for endpoint: TitlesEndpoint) async throws -> [Title] {
+        var components = URLComponents(string: APIConstants.tmdbBaseURL + endpoint.path)
+        components?.queryItems = [URLQueryItem(name: "api_key", value: APIConstants.tmdbAPIKey)] + endpoint.queryItems
+
+        guard let url = components?.url else { throw APIError.invalidURL }
+        return try await fetch(TitleResponse.self, from: url).results
     }
-    
+
+    /// Searches YouTube for the official trailer of the given title.
+    func trailer(forTitleNamed name: String) async throws -> VideoElement {
+        var components = URLComponents(string: APIConstants.youtubeSearchURL)
+        components?.queryItems = [
+            URLQueryItem(name: "part", value: "snippet"),
+            URLQueryItem(name: "type", value: "video"),
+            URLQueryItem(name: "videoEmbeddable", value: "true"),
+            URLQueryItem(name: "maxResults", value: "1"),
+            URLQueryItem(name: "q", value: "\(name) trailer"),
+            URLQueryItem(name: "key", value: APIConstants.youtubeAPIKey)
+        ]
+
+        guard let url = components?.url else { throw APIError.invalidURL }
+        let response = try await fetch(YoutubeSearchResponse.self, from: url)
+
+        guard let video = response.items.first, video.id.videoId != nil else {
+            throw APIError.noResults
+        }
+        return video
+    }
+
+    private func fetch<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(from: url)
+        } catch {
+            throw APIError.requestFailed
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.requestFailed
+        }
+
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw APIError.decodingFailed
+        }
+    }
 }
-
-// URL for movie and tv shows api's
-// https://www.themoviedb.org/settings/api
-

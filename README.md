@@ -1,37 +1,91 @@
-## Netflix Clone App
+# Netflix Clone — iOS 26 · UIKit · Liquid Glass
 
-**Description:** 
+A Netflix-inspired iOS app built with **UIKit**, modernized for **iOS 26** with the new **Liquid Glass** design language. Browse trending movies and TV shows, watch trailers, search the TMDB catalog, and save titles for offline viewing.
 
-This is a mobile application inspired by Netflix, allowing users to browse and discover movies and TV shows.  This is a work in progress and currently includes features like:
+![Swift](https://img.shields.io/badge/Swift-5-orange?logo=swift)
+![Platform](https://img.shields.io/badge/iOS-26.0+-blue?logo=apple)
+![UI](https://img.shields.io/badge/UIKit-Liquid%20Glass-purple)
+![Xcode](https://img.shields.io/badge/Xcode-26-blue?logo=xcode)
 
-* **Tabbed Navigation:** The app uses a tab bar for easy access to different sections.
-    * **Home:** Browse trending movies & TV shows, popular movies, upcoming movies, and top rated movies.
-    * **Coming Soon:** Discover upcoming movies. (Functionality not fully implemented)
-    * **Top Searches:** Search for movies and TV shows. (Functionality not fully implemented)
-    * **Downloads:** Download movies and TV shows for offline viewing. (Functionality not fully implemented)
-* Hero Header displaying a random trending movie poster
-* Basic table view with sections
-* Ability to tap on a movie poster and see a YouTube trailer preview
+## Screenshots
 
-**Requirements:**
+| Home | Preview & Trailer | New & Hot |
+|:---:|:---:|:---:|
+| ![Home](Docs/screenshots/home.png) | ![Preview](Docs/screenshots/preview.png) | ![New & Hot](Docs/screenshots/upcoming.png) |
 
-* Xcode 
-* Swift Programming Language
-* TMDB API Key  (You'll need to register for a free TMDB API key to fetch movie/TV show data)
+| Search | Downloads (empty state) |
+|:---:|:---:|
+| ![Search](Docs/screenshots/search.png) | ![Downloads](Docs/screenshots/downloads.png) |
 
-**Setup:**
+## Features
 
-1. Clone this repository.
-2. Open the project in Xcode.
-3. Replace `YOUR_TMDB_API_KEY` in `APICaller.swift` with your actual TMDB API key. 
-4. (Optional) You may need to link additional frameworks depending on your implementation choices.
+- **Home feed** — five curated rows (Trending Movies, Trending TV, Popular, Upcoming, Top Rated) fetched **concurrently** with Swift structured concurrency, plus pull-to-refresh
+- **Hero header** — a random trending title with Liquid Glass *Play* and *Download* buttons over a gradient poster
+- **Trailer preview** — tap any poster to watch the YouTube trailer in-app; falls back to poster art when no embeddable trailer exists
+- **Search** — live search with debouncing over the TMDB catalog, presented through the iOS 26 tab-bar search field
+- **Downloads** — long-press any poster (or use the preview screen) to save a title to Core Data; swipe to delete; system empty state when the list is empty
+- **Haptics, error alerts, duplicate-download protection** — small touches that make it feel like a real app
 
-**Running the App:**
+## iOS 26 / Modern APIs Used
 
-1. Connect your iPhone or simulator to your computer.
-2. Build and run the project in Xcode.
+| API | Where |
+|---|---|
+| `UIButton.Configuration.glass()` / `.prominentGlass()` | Hero header & preview download button |
+| `UITab` + `UISearchTab` | Floating Liquid Glass tab bar with morphing search field |
+| Swift Concurrency (`async/await`, `withTaskGroup`, task cancellation) | Networking layer & all view controllers |
+| `UIContentUnavailableConfiguration` | Downloads empty state |
+| `UIListContentConfiguration` | Home section headers |
+| Core Data (`NSPersistentContainer`) | Offline downloads store |
+| [SDWebImage](https://github.com/SDWebImage/SDWebImage) | Async image loading & caching |
 
+## Architecture
 
-**Author:**
+MVVM with a clear separation of concerns:
 
-(Ahmed Halilovic)
+```
+NetflixClone
+├── Controllers
+│   ├── Core          # Home, New & Hot, Search, Downloads, TabBar
+│   └── General       # TitlePreview, SearchResults
+├── Managers
+│   ├── APICaller     # async/await TMDB + YouTube client (typed endpoints & errors)
+│   └── DataPersistenceManager   # Core Data stack + downloads CRUD
+├── Models            # Codable API models (Title, YoutubeSearchResponse)
+├── ViewModels        # TitleViewModel, TitlePreviewViewModel
+└── Views             # HeroHeader, poster cells
+```
+
+Highlights:
+
+- **Single-fetch feed** — each home section is fetched once and cached in the controller; cells only render data (no network calls in `cellForRowAt`)
+- **Typed endpoints** — `APICaller.TitlesEndpoint` enum builds URLs with `URLComponents`, no string interpolation of queries
+- **Bridged models** — Core Data items convert back to the `Title` API model, so every screen shares the same view models
+
+## Getting Started
+
+### Requirements
+
+- Xcode 26+
+- iOS 26.0+ simulator or device
+
+### Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ahmedhalilovic/NetflixClone.git
+   ```
+2. Open `NetflixClone.xcodeproj` in Xcode — Swift Package Manager resolves SDWebImage automatically.
+3. Copy `NetflixClone/Managers/Secrets.swift.example` to `NetflixClone/Managers/Secrets.swift` (gitignored) and add your own keys:
+   - **TMDB** key: [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) (free)
+   - **YouTube Data API v3** key: [Google Cloud Console](https://console.cloud.google.com/apis) (free, quota-limited — trailers gracefully fall back to poster art if unavailable)
+4. Add `Secrets.swift` to the `NetflixClone` target in Xcode (drag it into the `Managers` group if it doesn't show up automatically).
+5. Build & run.
+
+## Credits
+
+- Movie & TV data from [TMDB](https://www.themoviedb.org). This product uses the TMDB API but is not endorsed or certified by TMDB.
+- Trailers via the [YouTube Data API](https://developers.google.com/youtube/v3).
+
+## Author
+
+**Ahmed Halilovic**

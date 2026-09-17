@@ -2,135 +2,117 @@
 //  CollectionViewTableViewCell.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 5. 12. 2023..
+//  Created by Ahmed Halilovic on 5. 12. 2023..
 //
 
 import UIKit
 
 protocol CollectionViewTableViewCellDelegate: AnyObject {
-    func CollectionViewTableViewCellDidTapCell(_ cell: CollectionViewTableViewCell, viewModel: TitlePreviewViewModel)
+    func collectionViewTableViewCell(_ cell: CollectionViewTableViewCell,
+                                     didSelect viewModel: TitlePreviewViewModel)
+    func collectionViewTableViewCell(_ cell: CollectionViewTableViewCell,
+                                     didFailWith error: Error)
 }
 
 class CollectionViewTableViewCell: UITableViewCell {
 
     static let identifier = "CollectionViewTableViewCell"
-    
+
     weak var delegate: CollectionViewTableViewCellDelegate?
-    
-    private var titles: [Title] = [Title]()
-    
+
+    private var titles: [Title] = []
+
     private let collectionView: UICollectionView = {
-        
         let layout = UICollectionViewFlowLayout()
-        layout.itemSize = CGSize(width: 140, height: 200)
+        layout.itemSize = CGSize(width: 130, height: 195)
         layout.scrollDirection = .horizontal
+        layout.minimumLineSpacing = 10
+        layout.sectionInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
-        collectionView.register(TitleCollectionViewCell.self, forCellWithReuseIdentifier: TitleCollectionViewCell.identifier)
-        
+        collectionView.register(TitleCollectionViewCell.self,
+                                forCellWithReuseIdentifier: TitleCollectionViewCell.identifier)
+        collectionView.showsHorizontalScrollIndicator = false
+        collectionView.backgroundColor = .clear
         return collectionView
     }()
-    
+
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        contentView.backgroundColor = .systemPink
+        backgroundColor = .clear
+        selectionStyle = .none
         contentView.addSubview(collectionView)
-        
+
         collectionView.delegate = self
         collectionView.dataSource = self
     }
-    
+
     required init?(coder: NSCoder) {
-        fatalError()
+        fatalError("init(coder:) has not been implemented")
     }
-    
+
     override func layoutSubviews() {
         super.layoutSubviews()
         collectionView.frame = contentView.bounds
     }
-    
-    public func configure(with titles: [Title]) {
+
+    func configure(with titles: [Title]) {
         self.titles = titles
-        DispatchQueue.main.async { [weak self] in
-            self?.collectionView.reloadData()
-        }
+        collectionView.reloadData()
     }
-    
-    private func downloadTitleAt(indexPath: IndexPath) {
-        
-        DataPersistenceManager.shared.downloadTitleWith(model: titles[indexPath.row]) { result in
-            switch result {
-            case .success():
-                NotificationCenter.default.post(name: NSNotification.Name("downloaded"), object: nil)
-            case .failure(let error):
-                print(error.localizedDescription)
-            }
+
+    private func downloadTitle(at indexPath: IndexPath) {
+        do {
+            try DataPersistenceManager.shared.download(titles[indexPath.row])
+        } catch {
+            delegate?.collectionViewTableViewCell(self, didFailWith: error)
         }
-        
     }
 }
 
-    // Conformance to UICollectionViewDelegate and UICollectionViewDataSource, because value of type CollectionViewTableViewCell cannot be assigned to type UICollectionViewDelegate and UICollectionViewDataSource
-
 extension CollectionViewTableViewCell: UICollectionViewDelegate, UICollectionViewDataSource {
-    
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        
-        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: TitleCollectionViewCell.identifier, for: indexPath) as? TitleCollectionViewCell else {
-            return UICollectionViewCell()
-        }
-        
-        guard let model = titles[indexPath.row].poster_path else {
-            return UICollectionViewCell()
-        }
-        cell.configure(with: model)
-        
-        return cell
-        
-    }
-    
+
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         return titles.count
     }
-    
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        guard let cell = collectionView.dequeueReusableCell(
+            withReuseIdentifier: TitleCollectionViewCell.identifier,
+            for: indexPath) as? TitleCollectionViewCell else {
+            return UICollectionViewCell()
+        }
+
+        cell.configure(with: titles[indexPath.row].posterURL)
+        return cell
+    }
+
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
-        
         let title = titles[indexPath.row]
-        guard let titleName = title.title ?? title.original_title ?? title.original_name else {
-            return
-        }
-        
-        APICaller.shared.getMovie(with: titleName + " trailer") { [weak self] result in
-            switch result {
-            case .success(let videoElement):
-                
-                let title = self?.titles[indexPath.row]
-                guard let titleOverview = title?.overview else {
-                    return
-                }
-                guard let strongSelf = self else {
-                    return
-                }
-                let viewModel = TitlePreviewViewModel(title: titleName, youtubeView: videoElement, titleOverview: titleOverview)
-                self?.delegate?.CollectionViewTableViewCellDidTapCell(strongSelf, viewModel: viewModel)
-            case .failure(let error):
-                print(error.localizedDescription)
-            }
+
+        // Open the preview even if the trailer lookup fails — it falls back to poster art.
+        Task { @MainActor [weak self] in
+            let trailer = try? await APICaller.shared.trailer(forTitleNamed: title.displayTitle)
+            guard let self else { return }
+            self.delegate?.collectionViewTableViewCell(
+                self,
+                didSelect: TitlePreviewViewModel(title: title, trailer: trailer))
         }
     }
-    
-    // Function to that shows download button when longTap on movie or tv show poster
-    func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemsAt indexPaths: [IndexPath], point: CGPoint) -> UIContextMenuConfiguration? {
-        let config = UIContextMenuConfiguration(
-            identifier: nil,
-            previewProvider: nil) {[weak self] _ in
-                let downloadAction = UIAction(title: "Download", subtitle: nil, image: nil, identifier: nil, discoverabilityTitle: nil, state: .off) { _ in
-                    self?.downloadTitleAt(indexPath: indexPaths[0])
-                }
-                return UIMenu(title: "", image: nil, identifier: nil, options: .displayInline, children: [downloadAction])
+
+    // Long-press context menu with a Download action.
+    func collectionView(_ collectionView: UICollectionView,
+                        contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+                        point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let indexPath = indexPaths.first else { return nil }
+
+        return UIContextMenuConfiguration(actionProvider: { [weak self] _ in
+            let downloadAction = UIAction(title: "Download",
+                                          image: UIImage(systemName: "arrow.down.circle")) { _ in
+                self?.downloadTitle(at: indexPath)
             }
-        
-        return config
+            return UIMenu(options: .displayInline, children: [downloadAction])
+        })
     }
-    
 }

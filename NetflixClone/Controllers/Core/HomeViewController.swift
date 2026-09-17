@@ -2,30 +2,56 @@
 //  HomeViewController.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 4. 12. 2023..
+//  Created by Ahmed Halilovic on 4. 12. 2023..
 //
 
 import UIKit
 
-enum Section: Int {
-    case TrendingMovies = 0
-    case TrendingTV = 1
-    case Popular = 2
-    case Upcoming = 3
-    case TopRated = 4
-}
-
 class HomeViewController: UIViewController {
-    
-    // For the header view that generates new poster every time we enter the app
-    private var randomTrendingMovie: Title?
+
+    private enum HomeSection: Int, CaseIterable {
+        case trendingMovies
+        case trendingTV
+        case popular
+        case upcoming
+        case topRated
+
+        var title: String {
+            switch self {
+            case .trendingMovies: return "Trending Movies"
+            case .trendingTV: return "Trending TV"
+            case .popular: return "Popular"
+            case .upcoming: return "Upcoming Movies"
+            case .topRated: return "Top Rated"
+            }
+        }
+
+        var endpoint: APICaller.TitlesEndpoint {
+            switch self {
+            case .trendingMovies: return .trendingMovies
+            case .trendingTV: return .trendingTV
+            case .popular: return .popularMovies
+            case .upcoming: return .upcomingMovies
+            case .topRated: return .topRatedMovies
+            }
+        }
+    }
+
+    /// Titles per section, fetched once and reused by the cells.
+    private var sectionTitles: [HomeSection: [Title]] = [:]
+
+    private var heroTitle: Title?
     private var headerView: HeroHeaderUIView?
 
-    let sectionTitles: [String] = ["Trending Movies","Trending TV", "Popular", "Upcoming Movies", "Top rated"]
-    
     private let homeFeedTable: UITableView = {
         let table = UITableView(frame: .zero, style: .grouped)
-        table.register(CollectionViewTableViewCell.self, forCellReuseIdentifier: CollectionViewTableViewCell.identifier)
+        table.register(CollectionViewTableViewCell.self,
+                       forCellReuseIdentifier: CollectionViewTableViewCell.identifier)
+        table.register(UITableViewHeaderFooterView.self,
+                       forHeaderFooterViewReuseIdentifier: "SectionHeader")
+        table.backgroundColor = .clear
+        table.separatorStyle = .none
+        table.contentInsetAdjustmentBehavior = .never
         return table
     }()
 
@@ -35,248 +61,188 @@ class HomeViewController: UIViewController {
         view.addSubview(homeFeedTable)
         homeFeedTable.delegate = self
         homeFeedTable.dataSource = self
-        
+
         configureNavBar()
-        
-        headerView = HeroHeaderUIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 450))
-        homeFeedTable.tableHeaderView = headerView
-        configureHeroHeaderView()
-        
+
+        let header = HeroHeaderUIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 480))
+        header.delegate = self
+        headerView = header
+        homeFeedTable.tableHeaderView = header
+
+        let refreshControl = UIRefreshControl()
+        refreshControl.addAction(UIAction { [weak self] _ in
+            self?.fetchAllSections()
+        }, for: .valueChanged)
+        homeFeedTable.refreshControl = refreshControl
+
+        fetchAllSections()
     }
-    
-    // Function to get random poster image every time we enter the app
-    func configureHeroHeaderView() {
-        
-        APICaller.shared.getTrendingMovies { [weak self] result in
-            switch result {
-            case .success(let titles):
-                let selectedTitle = titles.randomElement()
-                
-                self?.randomTrendingMovie = titles.randomElement()
-                self?.headerView?.configure(with: TitleViewModel(titleName: selectedTitle?.original_title ?? "", posterURL: selectedTitle?.poster_path ?? ""))
-            case .failure(let error):
-                print(error.localizedDescription)
-            }
-        }
-    }
-    
-    private func configureNavBar() {
-        var image = UIImage(named: "netflixLogo")
-        image = image?.withRenderingMode(.alwaysOriginal)
-        
-        let barButtonItem = UIBarButtonItem(image: image, style: .done, target: self, action: nil)
-        barButtonItem.imageInsets = UIEdgeInsets(top: 0, left: -100, bottom: 0, right: 0)
-        navigationItem.leftBarButtonItem = barButtonItem
-        
-        navigationItem.rightBarButtonItems = [
-            UIBarButtonItem(image: UIImage(systemName: "person"), style: .done, target: self, action: nil),
-            UIBarButtonItem(image: UIImage(systemName: "play.rectangle"), style: .done, target: self, action: nil)
-        ]
-        navigationController?.navigationBar.tintColor = .white
-    }
-    
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         homeFeedTable.frame = view.bounds
+        // The hero image runs edge-to-edge behind the nav bar, so inset the bottom manually.
+        homeFeedTable.contentInset.bottom = view.safeAreaInsets.bottom
     }
-    
-    // MARK: Display movie posters to table from APICaller
-    //Function to show Trending Movies from API request
-    private func getTrendingMovies() {
-        
-        APICaller.shared.getTrendingMovies { results in
-            switch results {
-            case .success(let movies):
-                print(movies)
-            case .failure(let error):
-                print(error)
-            }
-        }
+
+    private func configureNavBar() {
+        let logoImageView = UIImageView(image: UIImage(named: "NetflixLogo"))
+        logoImageView.contentMode = .scaleAspectFit
+        logoImageView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            logoImageView.widthAnchor.constraint(equalToConstant: 30),
+            logoImageView.heightAnchor.constraint(equalToConstant: 30)
+        ])
+        navigationItem.leftBarButtonItem = UIBarButtonItem(customView: logoImageView)
     }
-    
-    // Function to show trending TV Shows from API request
-    private func getTrendingTVShows() {
-        
-        APICaller.shared.getTrendingTVShows { results in
-            switch results {
-            case .success(let tvShows):
-                print(tvShows)
-            case .failure(let error):
-                print(error)
+
+    /// Fetches every home section concurrently and reloads the feed once.
+    private func fetchAllSections() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            var loaded: [HomeSection: [Title]] = [:]
+            var lastError: Error?
+
+            await withTaskGroup(of: (HomeSection, Result<[Title], Error>).self) { group in
+                for section in HomeSection.allCases {
+                    group.addTask {
+                        do {
+                            let titles = try await APICaller.shared.titles(for: section.endpoint)
+                            return (section, .success(titles))
+                        } catch {
+                            return (section, .failure(error))
+                        }
+                    }
+                }
+
+                for await (section, result) in group {
+                    switch result {
+                    case .success(let titles): loaded[section] = titles
+                    case .failure(let error): lastError = error
+                    }
+                }
             }
-        }
-    }
-    
-    // Function to show Upcoming Movies from API request
-    private func getPopularMovies() {
-        
-        APICaller.shared.getPopularMovies { results in
-            switch results {
-            case .success(let movies):
-                print(movies)
-            case .failure(let error):
-                print(error)
+
+            self.sectionTitles = loaded
+            self.configureHeroHeader(with: loaded[.trendingMovies])
+            self.homeFeedTable.reloadData()
+            self.homeFeedTable.refreshControl?.endRefreshing()
+
+            if loaded.isEmpty, let lastError {
+                self.presentErrorAlert(lastError, title: "Could Not Load Titles")
             }
-        }
-    }
-    
-    // Function to show Upcoming Movies from API request
-    private func getUpcomingMovies() {
-        
-        APICaller.shared.getUpcomingMovies { results in
-            switch results {
-            case .success(let movies):
-                print(movies)
-            case .failure(let error):
-                print(error)
+
+            #if DEBUG
+            // Screenshot/UI-test hook: launch with `-autoOpenHeroPreview YES`.
+            if UserDefaults.standard.bool(forKey: "autoOpenHeroPreview"), let heroTitle = self.heroTitle {
+                self.presentPreview(for: heroTitle)
             }
-        }
-    }
-    
-    // Function to show Top Rated Movies from API request
-    private func getTopRatedMovies() {
-        
-        APICaller.shared.getTopRatedMovies { results in
-            switch results {
-            case .success(let movies):
-                print(movies)
-            case .failure(let error):
-                print(error)
-            }
+            #endif
         }
     }
 
-}
+    private func configureHeroHeader(with trending: [Title]?) {
+        guard let hero = trending?.randomElement() else { return }
+        heroTitle = hero
+        headerView?.configure(with: hero)
+    }
 
-// MARK: Table with Movies and TV shows
-// Extension of Home View Controller to show table with Trending Movies, Trending TV, Popular...
-extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
-    
-    func numberOfSections(in tableView: UITableView) -> Int {
-        sectionTitles.count
-    }
-    
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 1
-    }
-    
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: CollectionViewTableViewCell.identifier, for: indexPath) as? CollectionViewTableViewCell else {
-            return UITableViewCell()
-        }
-        
-        cell.delegate = self
-        
-        switch indexPath.section {
-        
-        case Section.TrendingMovies.rawValue:
-            
-            APICaller.shared.getTrendingMovies { result in
-                switch result {
-                case .success(let titles):
-                    cell.configure(with: titles)
-                case .failure(let error):
-                    print(error.localizedDescription)
-                }
-            }
-            
-        case Section.TrendingTV.rawValue:
-            
-            APICaller.shared.getTrendingTVShows { result in
-                switch result {
-                case .success(let titles):
-                    cell.configure(with: titles)
-                case .failure(let error):
-                    print(error.localizedDescription)
-                }
-            }
-            
-        case Section.Popular.rawValue:
-            
-            APICaller.shared.getPopularMovies { result in
-                switch result {
-                case .success(let titles):
-                    cell.configure(with: titles)
-                case .failure(let error):
-                    print(error.localizedDescription)
-                }
-            }
-            
-        case Section.Upcoming.rawValue:
-            
-            APICaller.shared.getUpcomingMovies { result in
-                switch result {
-                case .success(let titles):
-                    cell.configure(with: titles)
-                case .failure(let error):
-                    print(error.localizedDescription)
-                }
-            }
-            
-        case Section.TopRated.rawValue:
-            
-            APICaller.shared.getTopRatedMovies { result in
-                switch result {
-                case .success(let titles):
-                    cell.configure(with: titles)
-                case .failure(let error):
-                    print(error.localizedDescription)
-                }
-            }
-        default:
-            return UITableViewCell()
-        }
-        
-        return cell
-        
-    }
-    
-    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        200
-    }
-    
-    func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
-        40
-    }
-    
-    // Func to modify the header text that is found above every section in table sections (Trending movies, Popular...)
-    func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-        guard let header = view as? UITableViewHeaderFooterView else { return }
-        header.textLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
-        header.textLabel?.frame = CGRect(x: header.bounds.origin.x + 20, y: header.bounds.origin.y, width: 100, height: header.bounds.height)
-        header.textLabel?.textColor = .white
-        
-        // Capitalising first letter in external file called Extensions.swift, because that is not relevant enough for it to be in this file
-        header.textLabel?.text = header.textLabel?.text?.capitalizedFirstLetter()
-    }
-    
-    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return sectionTitles[section]
-    }
-    
-    // Navigation bar to disappear when scrolling up
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        let defaultOffset = view.safeAreaInsets.top
-        let offset = scrollView.contentOffset.y + defaultOffset
-        
-        navigationController?.navigationBar.transform = .init(translationX: 0, y: min(0, -offset))
-    }
-    
-}
-
-
-// When poster image is tapped, youtube trailer from that movie/tv is displayed
-extension HomeViewController: CollectionViewTableViewCellDelegate {
-    func CollectionViewTableViewCellDidTapCell(_ cell: CollectionViewTableViewCell, viewModel: TitlePreviewViewModel) {
-        DispatchQueue.main.async { [weak self] in
+    private func presentPreview(for title: Title) {
+        Task { @MainActor [weak self] in
+            let trailer = try? await APICaller.shared.trailer(forTitleNamed: title.displayTitle)
             let vc = TitlePreviewViewController()
-            vc.configure(with: viewModel)
+            vc.configure(with: TitlePreviewViewModel(title: title, trailer: trailer))
             self?.navigationController?.pushViewController(vc, animated: true)
         }
     }
-    
-    
 }
 
+// MARK: - Home feed table
 
+extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
+
+    func numberOfSections(in tableView: UITableView) -> Int {
+        HomeSection.allCases.count
+    }
+
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return 1
+    }
+
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        guard let cell = tableView.dequeueReusableCell(
+                withIdentifier: CollectionViewTableViewCell.identifier,
+                for: indexPath) as? CollectionViewTableViewCell,
+              let section = HomeSection(rawValue: indexPath.section) else {
+            return UITableViewCell()
+        }
+
+        cell.delegate = self
+        cell.configure(with: sectionTitles[section] ?? [])
+        return cell
+    }
+
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        200
+    }
+
+    func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        guard let header = tableView.dequeueReusableHeaderFooterView(withIdentifier: "SectionHeader"),
+              let homeSection = HomeSection(rawValue: section) else {
+            return nil
+        }
+
+        var config = UIListContentConfiguration.header()
+        config.text = homeSection.title
+        config.textProperties.font = .systemFont(ofSize: 18, weight: .semibold)
+        config.textProperties.color = .label
+        header.contentConfiguration = config
+        return header
+    }
+
+    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        44
+    }
+
+    func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
+        16
+    }
+}
+
+// MARK: - Cell delegate
+
+extension HomeViewController: CollectionViewTableViewCellDelegate {
+
+    func collectionViewTableViewCell(_ cell: CollectionViewTableViewCell,
+                                     didSelect viewModel: TitlePreviewViewModel) {
+        let vc = TitlePreviewViewController()
+        vc.configure(with: viewModel)
+        navigationController?.pushViewController(vc, animated: true)
+    }
+
+    func collectionViewTableViewCell(_ cell: CollectionViewTableViewCell,
+                                     didFailWith error: Error) {
+        presentErrorAlert(error)
+    }
+}
+
+// MARK: - Hero header actions
+
+extension HomeViewController: HeroHeaderUIViewDelegate {
+
+    func heroHeaderDidTapPlay(_ headerView: HeroHeaderUIView) {
+        guard let heroTitle else { return }
+        presentPreview(for: heroTitle)
+    }
+
+    func heroHeaderDidTapDownload(_ headerView: HeroHeaderUIView) {
+        guard let heroTitle else { return }
+        do {
+            try DataPersistenceManager.shared.download(heroTitle)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            presentErrorAlert(error)
+        }
+    }
+}

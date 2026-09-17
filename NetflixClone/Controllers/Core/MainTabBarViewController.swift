@@ -1,8 +1,8 @@
 //
-//  ViewController.swift
+//  MainTabBarViewController.swift
 //  NetflixClone
 //
-//  Created by Net Solution on 4. 12. 2023..
+//  Created by Ahmed Halilovic on 4. 12. 2023..
 //
 
 import UIKit
@@ -11,29 +11,38 @@ class MainTabBarViewController: UITabBarController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemYellow
-        
-        let vc1 = UINavigationController(rootViewController: HomeViewController())
-        let vc2 = UINavigationController(rootViewController: UpcomingViewController())
-        let vc3 = UINavigationController(rootViewController: SearchViewController())
-        let vc4 = UINavigationController(rootViewController: DownloadsViewController())
-        
-        vc1.tabBarItem.image = UIImage(systemName: "house")
-        vc2.tabBarItem.image = UIImage(systemName: "play.circle")
-        vc3.tabBarItem.image = UIImage(systemName: "magnifyingglass")
-        vc4.tabBarItem.image = UIImage(systemName: "arrow.down.to.line")
-        
-        vc1.title = "Home"
-        vc2.title = "Coming Soon"
-        vc3.title = "Top Searches"
-        vc4.title = "Downloads"
-        
+
+        // The modern UITab API — on iOS 26 the tab bar renders as floating Liquid Glass,
+        // and UISearchTab morphs into the dedicated search field.
+        tabs = [
+            UITab(title: "Home",
+                  image: UIImage(systemName: "house"),
+                  identifier: "tab.home") { _ in
+                UINavigationController(rootViewController: HomeViewController())
+            },
+            UITab(title: "New & Hot",
+                  image: UIImage(systemName: "play.rectangle.on.rectangle"),
+                  identifier: "tab.upcoming") { _ in
+                UINavigationController(rootViewController: UpcomingViewController())
+            },
+            UITab(title: "Downloads",
+                  image: UIImage(systemName: "arrow.down.circle"),
+                  identifier: "tab.downloads") { _ in
+                UINavigationController(rootViewController: DownloadsViewController())
+            },
+            UISearchTab { _ in
+                UINavigationController(rootViewController: SearchViewController())
+            }
+        ]
+
         tabBar.tintColor = .label
-        
-        setViewControllers([vc1, vc2, vc3, vc4], animated: true)
-        
+
+        #if DEBUG
+        // Screenshot/UI-test hook: launch with `-selectedTabIndex <n>` to open a specific tab.
+        let requestedTab = UserDefaults.standard.integer(forKey: "selectedTabIndex")
+        if requestedTab > 0 && requestedTab < tabs.count {
+            selectedIndex = requestedTab
+        }
+        #endif
     }
-
-
 }
-
